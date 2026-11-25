@@ -5,11 +5,13 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcryptjs');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 // Load .env from server/ directory (works locally; on Vercel set vars in dashboard)
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
+app.use(compression());
 const JWT_SECRET = process.env.JWT_SECRET || 'mor_super_secret_key_2026'; // Please ensure this is set in .env in production
 
 // Vercel proxy support (required for rate-limiting to work properly)
@@ -611,12 +613,22 @@ app.put('/api/sub-admin/change-credentials', async (req, res) => {
 
 // API Routes
 
+// In-memory products cache for fast instant responses
+let productsMemoryCache = null;
+let productsCacheTime = 0;
+const PRODUCTS_CACHE_TTL = 30 * 1000; // 30 seconds
+
 // Get all products
 app.get('/api/products', async (req, res) => {
   try {
-    res.setHeader('Cache-Control', 'no-store');
+    const forceFresh = !!req.query.t;
+    if (!forceFresh && productsMemoryCache && (Date.now() - productsCacheTime < PRODUCTS_CACHE_TTL)) {
+      res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
+      return res.json(productsMemoryCache);
+    }
+
     // Use limit to avoid memory issues on Atlas M0 free tier
-    const products = await Product.find().limit(100).lean();
+    const products = await Product.find().sort({ createdAt: -1 }).limit(100).lean();
     const formattedProducts = products.map(p => ({
       id: p._id.toString(),
       title: p.title,
@@ -626,6 +638,15 @@ app.get('/api/products', async (req, res) => {
       video: p.video || '',
       description: p.description
     }));
+
+    productsMemoryCache = formattedProducts;
+    productsCacheTime = Date.now();
+
+    if (forceFresh) {
+      res.setHeader('Cache-Control', 'no-store');
+    } else {
+      res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
+    }
     res.json(formattedProducts);
   } catch (error) {
     res.json([{ 
@@ -645,6 +666,7 @@ app.post('/api/products', verifyAnyAdmin('products'), async (req, res) => {
     const { title, price, actualPrice, images, video, description } = req.body;
     const newProduct = new Product({ title, price, actualPrice, images, video, description, image: images && images.length > 0 ? images[0] : '' });
     const savedProduct = await newProduct.save();
+    productsMemoryCache = null; // Invalidate cache
     const productData = {
       id: savedProduct._id.toString(),
       title: savedProduct.title,
@@ -686,6 +708,7 @@ app.put('/api/products/:id', verifyAnyAdmin('products'), async (req, res) => {
       { new: true }
     );
     if (!updatedProduct) return res.status(404).json({ message: 'Product not found' });
+    productsMemoryCache = null; // Invalidate cache
     
     res.json({
       id: updatedProduct._id.toString(),
@@ -706,6 +729,7 @@ app.delete('/api/products/:id', verifyAnyAdmin('products'), async (req, res) => 
   try {
     const deletedProduct = await Product.findByIdAndDelete(req.params.id);
     if (!deletedProduct) return res.status(404).json({ message: 'Product not found' });
+    productsMemoryCache = null; // Invalidate cache
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });

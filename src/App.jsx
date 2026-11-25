@@ -39,8 +39,26 @@ function ScrollToTop() {
 }
 
 function App() {
-  const [products, setProducts] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [products, setProducts] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cachedProducts');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cachedProducts');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return false;
+      }
+    } catch {}
+    return true;
+  });
   const [cartItems, setCartItems] = useState(() => {
     const saved = localStorage.getItem('cartItems');
     return saved ? JSON.parse(saved) : [];
@@ -66,29 +84,31 @@ function App() {
     // If forceFresh (after admin add/edit/delete), clear cache first
     if (forceFresh) {
       localStorage.removeItem('cachedProducts');
-    }
-    // Only show full-screen loading if no cached products exist
-    const cached = localStorage.getItem('cachedProducts');
-    if (cached && !forceFresh) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setProducts(parsed);
-          setIsLoading(false); // Show site immediately with cached data
-        }
-      } catch {}
     } else {
-      setIsLoading(true);
+      const cached = localStorage.getItem('cachedProducts');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setProducts(parsed);
+            setIsLoading(false);
+          }
+        } catch {}
+      }
     }
-    // Always fetch fresh data in background
-    fetch(`${API_URL}/products?t=${Date.now()}`, { cache: 'no-store' })
+
+    // Fetch fresh data
+    const url = forceFresh ? `${API_URL}/products?t=${Date.now()}` : `${API_URL}/products`;
+    fetch(url, forceFresh ? { cache: 'no-store' } : {})
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
           setProducts(data);
-          if (!forceFresh) {
-            localStorage.setItem('cachedProducts', JSON.stringify(data)); // Cache for next visit
-          }
+          try {
+            // Strip large base64 video before saving to localStorage so it never exceeds the 5MB quota
+            const lightCache = data.map(({ video, ...rest }) => rest);
+            localStorage.setItem('cachedProducts', JSON.stringify(lightCache));
+          } catch {}
         }
       })
       .catch(err => console.error('Error fetching products:', err))
@@ -172,8 +192,8 @@ function App() {
 
       <div className="container">
         <Routes>
-          <Route path="/" element={<Home products={products} handleAddToCart={handleAddToCart} onOpenChat={(p) => { setChatProduct(p); setIsChatOpen(true); }} />} />
-          <Route path="/shop" element={<Shop products={products} handleAddToCart={handleAddToCart} onOpenChat={(p) => { setChatProduct(p); setIsChatOpen(true); }} />} />
+          <Route path="/" element={<Home products={products} isLoading={isLoading} handleAddToCart={handleAddToCart} onOpenChat={(p) => { setChatProduct(p); setIsChatOpen(true); }} />} />
+          <Route path="/shop" element={<Shop products={products} isLoading={isLoading} handleAddToCart={handleAddToCart} onOpenChat={(p) => { setChatProduct(p); setIsChatOpen(true); }} />} />
           <Route path="/super-admin" element={<AdminLogin setAdminToken={setAdminToken} />} />
           <Route path="*" element={null} />
         </Routes>
@@ -246,18 +266,6 @@ function App() {
       />
 
       <CustomerChat isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} product={chatProduct} setChatProduct={setChatProduct} />
-      
-      {isLoading && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', background: 'rgba(0,0,0,0.7)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
-            <div style={{ width: '50px', height: '50px', border: '3px solid rgba(255,255,255,0.1)', borderTop: '3px solid var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-            <div style={{ color: 'white', fontWeight: 'bold', letterSpacing: '2px' }}>LOADING</div>
-          </div>
-          <style>{`
-            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-          `}</style>
-        </div>
-      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Leaf, Shield, CheckCircle, ArrowRight, Star, Heart, Droplet, User, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 
-const Home = ({ products, handleAddToCart, onOpenChat, navigate }) => {
+const Home = ({ products, isLoading, handleAddToCart, onOpenChat, navigate }) => {
   const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
   const carouselRef = useRef(null);
 
@@ -131,6 +131,12 @@ const Home = ({ products, handleAddToCart, onOpenChat, navigate }) => {
                 </div>
               </div>
             ))
+          ) : isLoading ? (
+            <div className="glass-panel" style={{ width: '100%', minHeight: '280px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
+              <div style={{ width: '38px', height: '38px', border: '3px solid rgba(255,255,255,0.1)', borderTop: '3px solid var(--primary)', borderRadius: '50%', animation: 'spin 0.9s linear infinite' }} />
+              <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '14px', letterSpacing: '1px' }}>Loading Products...</p>
+              <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+            </div>
           ) : (
             <p style={{ textAlign: 'center', color: 'var(--text-muted)', width: '100%' }}>No products available.</p>
           )}
