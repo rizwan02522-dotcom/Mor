@@ -232,7 +232,7 @@ const notifySubscribers = async (product) => {
             <h2 style="color:#4ade80">${product.title}</h2>
             <p style="color:#a0a0a0">${product.description || ''}</p>
             <p style="font-size:22px;font-weight:bold;color:#fff">Rs. ${product.price}</p>
-            <a href="https://morcare.pk/shop" style="display:inline-block;padding:12px 28px;background:#4ade80;color:#000;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:16px">Shop Now</a>
+            <a href="https://www.multirecover.com/shop" style="display:inline-block;padding:12px 28px;background:#4ade80;color:#000;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:16px">Shop Now</a>
           </div>
           <div style="padding:16px;text-align:center;color:#555;font-size:12px">You received this because you subscribed to MOR updates.</div>
         </div>
